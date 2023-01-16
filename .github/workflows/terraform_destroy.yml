@@ -1,0 +1,92 @@
+name: 'Terraform Destroy'
+
+on:
+  workflow_dispatch
+
+jobs:
+  terraform_destroy_plan:
+    name: 'Terraform Destroy Plan'
+    runs-on: ubuntu-latest
+
+    steps:
+    # Checkout the repository to the GitHub Actions runner
+    - name: Checkout
+      uses: actions/checkout@v3
+      
+    - name: Configure Env
+      uses: ./.github/actions/configure_env
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-west-2
+        cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+    # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
+    - name: Terraform Init
+      run: terraform init
+
+    # Generates an execution plan for Terraform
+    - name: Terraform Plan Destroy
+      continue-on-error: true
+      run: terraform plan -destroy -out "tf_plan_destroy" -input=false
+
+    - name: Upload TF Plan
+      uses: actions/upload-artifact@v2
+      with:
+        name: tf_plan_destroy
+        path: ./tf_plan_destroy
+        if-no-files-found: error
+        retention-days: 1
+
+      # On push to "main", build or change infrastructure according to Terraform configuration files
+      # Note: It is recommended to set up a required "strict" status check in your repository for "Terraform Cloud". See the documentation on "strict" required status checks for more information: https://help.github.com/en/github/administering-a-repository/types-of-required-status-checks
+  
+  terraform_destroy:
+    name: 'Terraform Destroy'
+    runs-on: ubuntu-latest
+    environment: production
+    needs: [terraform_destroy_plan]
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+    # Checkout the repository to the GitHub Actions runner
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Configure Env
+      uses: ./.github/actions/configure_env
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-west-2
+        cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+    # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
+    - name: Terraform Init
+      run: terraform init
+
+    - name: Download TF Plan
+      uses: actions/download-artifact@v3
+      with:
+        name: tf_plan_destroy
+        path: ./
+
+    - name: connect cluster
+      run: aws eks --region us-west-2 update-kubeconfig --name ex-eks-fargate
+      
+    - name: delete helm
+      continue-on-error: true
+      run: helm delete nginx
+
+    - name: Terraform Destroy
+      run: |
+        terraform show "tf_plan_destroy"
+        terraform apply -input=false tf_plan_destroy 
+
+
+
+
+

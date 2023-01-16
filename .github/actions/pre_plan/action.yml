@@ -1,0 +1,22 @@
+env:
+  SHELL: bash
+
+name: "terraform basic"
+description: "basic commands"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Terraform Init
+      shell: ${{ env.SHELL }}
+      run: terraform init
+
+    - name: Terraform Format
+      shell: ${{ env.SHELL }}
+      continue-on-error: true
+      run: terraform fmt -check
+
+    - name: Terraform Validate
+      shell: ${{ env.SHELL }}
+      continue-on-error: true
+      run: terraform validate -no-color

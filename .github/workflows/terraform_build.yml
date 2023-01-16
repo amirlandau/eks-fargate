@@ -1,0 +1,76 @@
+name: 'Terraform Build'
+
+on:
+  push:
+    branches: [ "main"]
+    paths-ignore:
+      - 'helm/**'
+      - .github/**
+
+jobs:
+  terraform_plan:
+    name: 'Terraform Plan'
+    runs-on: ubuntu-latest
+
+    steps:
+  # Checkout the repository to the GitHub Actions runner
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Configure Env
+      uses: ./.github/actions/configure_env
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-west-2
+        cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+    - name: Pre Plan
+      uses: ./.github/actions/pre_plan
+      
+    # Generates an execution plan for Terraform
+    - name: Terraform Plan
+      continue-on-error: true
+      run: terraform plan -out "tf_plan" -input=false
+
+    - name: Upload TF Plan
+      uses: actions/upload-artifact@v2
+      with:
+        name: tf_plan
+        path: ./tf_plan
+        if-no-files-found: error
+        retention-days: 1
+
+  terraform_apply:
+    name: 'Terraform apply'
+    runs-on: ubuntu-latest
+    environment: production
+    needs: [terraform_plan]
+
+    steps:
+    # Checkout the repository to the GitHub Actions runner
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Configure Env
+      uses: ./.github/actions/configure_env
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-west-2
+        cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+    # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
+    - name: Terraform Init
+      run: terraform init
+
+    - name: Download TF Plan
+      uses: actions/download-artifact@v2
+      with:
+        name: tf_plan
+        path: ./
+
+    - name: Terraform Apply
+      run: |
+        terraform show "tf_plan"
+        terraform apply -input=false tf_plan 
