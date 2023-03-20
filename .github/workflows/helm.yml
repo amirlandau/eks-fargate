@@ -31,3 +31,4 @@ jobs:
 
     - name: install nginx
       run: helm upgrade --install nginx helm/nginx
+      
