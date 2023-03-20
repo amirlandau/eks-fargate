@@ -33,6 +33,7 @@ variable "default_vpc_enable_dns_hostnames" {
   type        = bool
 }
 
+
 variable "cluster_version" {
   description = "Version of the EKS cluster"
   type        = string
