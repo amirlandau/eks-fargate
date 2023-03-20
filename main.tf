@@ -71,5 +71,4 @@ module "vpc" {
     "kubernetes.io/cluster/${local.name}" = "shared"
     "kubernetes.io/role/internal-elb"     = 1
   }
-
 }
